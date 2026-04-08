@@ -12,12 +12,47 @@
             padding: 0 !important;
             height: 100%;
             overscroll-behavior-y: none;
+            font-family: Arial
         }
 
         #canvas-div {
             display: flex;
             justify-content: center;
             align-items: center;
+            z-index: 0;
+        }
+
+        #names-list {
+            position: absolute;
+            z-index: 100;
+            top: 1%;
+            right: 1%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #result-dialog {
+            width: 400px;
+        }
+
+        #result-dialog-div {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 1em;
+            align-items: center;
+        }
+
+        #result-buttons {
+            width: 100%;
+            display: flex;
+            flex-direction: row;
+            gap: 1em;
+            justify-content: flex-end;
+        }
+
+        textarea {
+          resize: none;
         }
     </style>
 </head>
@@ -26,24 +61,91 @@
     <div id="canvas-div">
         <canvas id="canvas-wheel"></canvas>
     </div>
+    <div id="names-list">
+        <h3>Names</h1>
+        <textarea id="names-textarea" rows="10"></textarea>
+        <button onclick="spin()">spin</button>
+    </div>
+
+    <dialog id="result-dialog">
+        <div id="result-dialog-div">
+            <h1 id="result-dialog-name"></h1>
+            <div id="result-buttons">
+                <button onclick="endSpin(true)">Remove</button> 
+                <button onclick="endSpin(false)">Ok</button> 
+            </div>
+        </div>
+    </dialog>
 </body>
 
 <script>
 
-const colors = ["#232F18", "#7AE958", "#CBCBE7", "#C8C9BB", "#912B21", "#7E330C", "#E9A75D", "#A7E2BF"]
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+}
 
-// const names = ["jim", "john", "jose", "jade", "jack", "james", "juan", "javier", "jorge"];
-const names = ["jim", "john", "jose", "jade"]
+const colors = ["#D9A69F", "#6C739C", "#F0DAD5", "#BABBB1", "#C56B62", "#424658", "#DEA785"]
+
+shuffleArray(colors)
+
+let names = ["Po", "Shifu", "Oogway", "Tai Lung", "Shen"]
+const namesTextArea = document.getElementById("names-textarea")
+namesTextArea.value = names.join("\n")
+
+let startAngle = 0;
+let angleLeft = 0;
+let lastWinner = '';
+let indexToRemove = -1
 
 let lastTime = performance.now()
-let startAngle = (2*Math.PI / names.length) * 0.2;
+
+function spin() {
+    if (names.length === 1 && names[0] === '') return
+
+    namesTextArea.disabled = true
+    angleLeft = 2*Math.PI * 3 + Math.random() * 2*Math.PI*5
+    const nameIndex = names.length - 1 - Math.floor(((startAngle + angleLeft) % (2*Math.PI)) / (2*Math.PI/names.length))
+    indexToRemove = nameIndex
+    lastWinner = names[nameIndex]
+}
+
+function endSpin(remove) {
+    namesTextArea.disabled = false
+
+    if (remove) {
+        names.splice(indexToRemove, 1) 
+        namesTextArea.value = names.join("\n")
+    }
+
+    indexToRemove = -1
+
+    const resultDialog = document.getElementById("result-dialog")
+    resultDialog.close()
+}
 
 function draw() {
     const now = performance.now()
     const timeDiff = now - lastTime;
     lastTime = now;
 
-    startAngle = startAngle + (timeDiff * (2*Math.PI) / 10000)
+    const namesTextArea = document.getElementById("names-textarea")
+    names = namesTextArea.value.split("\n").filter((s) => s !== '')
+    if (names.length === 0) names = ['']
+
+    const angleDiff = Math.min(Math.sqrt(angleLeft) * (timeDiff * (2*Math.PI) / 3000), angleLeft)
+    startAngle = (startAngle + angleDiff) % (2*Math.PI)
+    angleLeft -= angleDiff
+
+    if (angleLeft === 0) {
+        const resultDialogName = document.getElementById("result-dialog-name")
+        resultDialogName.innerText = lastWinner
+
+        const resultDialog = document.getElementById("result-dialog")
+        if (!resultDialog.open && indexToRemove >= 0) resultDialog.showModal()
+    }
 
     const canvas = document.getElementById("canvas-wheel")
 
@@ -60,30 +162,60 @@ function draw() {
     ctx.fillStyle = "grey";
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
+    const radius = Math.min(canvas.width, canvas.height) * 0.8 / 2
+
     const angleStep = 2*Math.PI/names.length;
     for (let i = 0; i < names.length; i++) {
         ctx.resetTransform()
     	
+        // colorful pizza slices
         ctx.beginPath();
-        ctx.fillStyle = colors[i%colors.length]
+        ctx.fillStyle = colors[(i%colors.length + Math.trunc(i/colors.length)) % colors.length]
         ctx.moveTo(canvas.width/2, canvas.height/2)
-        const radius = Math.min(canvas.width, canvas.height) * 0.8 / 2
         ctx.arc(canvas.width/2, canvas.height/2, radius, startAngle + angleStep * i, startAngle + angleStep * (i+1), false);
         ctx.closePath()
         ctx.fill();
 
+        // white outline
+        if (names.length > 1) {
+            ctx.beginPath();
+            ctx.strokeStyle = "white"
+            ctx.moveTo(canvas.width/2, canvas.height/2)
+            ctx.arc(canvas.width/2, canvas.height/2, radius, startAngle + angleStep * i, startAngle + angleStep * (i+1), false);
+            ctx.closePath()
+            ctx.lineWidth = 3
+            ctx.stroke();
+            ctx.lineWidth = 1
+        }
+
+        // white circle in the middle
+        ctx.beginPath();
+        ctx.fillStyle = "white";
+        ctx.arc(canvas.width/2, canvas.height/2, radius / 10, 0, 2*Math.PI, false);
+        ctx.fill()
+
+        // names
         ctx.beginPath();
         ctx.fillStyle = "white";
         ctx.strokeStyle = "grey";
         ctx.translate(canvas.width/2, canvas.height/2)
-        ctx.rotate(startAngle + angleStep * (i + 1/2 + 1/10))
+        ctx.rotate(startAngle + angleStep * (i + 1/2))
         ctx.translate(radius, 0)
         ctx.font = "150px arial";
         ctx.textAlign = "end"
+        ctx.textBaseline = "middle"
         ctx.fillText(names[i] + " ", 0, 0, radius);
         ctx.strokeText(names[i] + " ", 0, 0, radius);
         ctx.fill();
     }
+
+    ctx.resetTransform()
+    ctx.beginPath()
+    ctx.strokeStyle = "red";
+    ctx.moveTo(canvas.width/2 + radius * 0.95, canvas.height/2);
+    ctx.lineTo(canvas.width/2 + (radius * 1.05), canvas.height/2 + radius*0.06);
+    ctx.lineTo(canvas.width/2 + (radius * 1.05), canvas.height/2 - radius*0.06);
+    ctx.fill()
 
     window.requestAnimationFrame(draw);
 }
