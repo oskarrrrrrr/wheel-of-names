@@ -51,6 +51,26 @@
             justify-content: flex-end;
         }
 
+        button {
+            cursor: pointer;
+
+            min-width: 100px;
+            padding: 4px;
+            color: white;
+            background-color: #8d909a;
+            border: 2px solid #676a79;
+            border-radius: 7px;
+            box-shadow: #424658 0px 7px;
+
+            position: relative;
+            top: 0;
+            transition: top ease 0.3s;
+
+            &:not(.disable):hover {
+                top: -4px;
+            }
+        }
+
         textarea {
           resize: none;
         }
