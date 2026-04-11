@@ -15,6 +15,17 @@
             font-family: Arial
         }
 
+        h2 {
+            color: white;
+        }
+
+        .center {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+        }
+
         #canvas-div {
             display: flex;
             justify-content: center;
@@ -29,6 +40,7 @@
             right: 1%;
             display: flex;
             flex-direction: column;
+            gap: .5em;
         }
 
         #result-dialog {
@@ -82,7 +94,9 @@
         <canvas id="canvas-wheel"></canvas>
     </div>
     <div id="names-list">
-        <h3>Names</h1>
+        <div class="center">
+            <h2>Names</h2>
+        </div>
         <textarea id="names-textarea" rows="10"></textarea>
         <button onclick="spin()">spin</button>
     </div>
@@ -107,7 +121,11 @@ function shuffleArray(array) {
     }
 }
 
-const colors = ["#D9A69F", "#6C739C", "#F0DAD5", "#BABBB1", "#C56B62", "#424658", "#DEA785"]
+function clamp(num, min, max) {
+    return Math.max(Math.min(num, max), min)
+}
+
+const colors = ["#D9A69F", "#6C739C", "#D8C4BF", "#BABBB1", "#C56B62", "#424658", "#DEA785"]
 
 shuffleArray(colors)
 
@@ -221,21 +239,48 @@ function draw() {
         ctx.translate(canvas.width/2, canvas.height/2)
         ctx.rotate(startAngle + angleStep * (i + 1/2))
         ctx.translate(radius, 0)
-        ctx.font = "150px arial";
-        ctx.textAlign = "end"
-        ctx.textBaseline = "middle"
-        ctx.fillText(names[i] + " ", 0, 0, radius);
-        ctx.strokeText(names[i] + " ", 0, 0, radius);
+
+        // draw name
+        {
+            /*
+                We use heuristics to make sure that the names are displayed nicely. The goal is to
+                display a large font but not so large that we squish the text. We focus on names
+                so the text is assumed to be relatively short - in most cases up to ~10 characters.
+                Text that is a bit longer will be handled gracefully but as the names get longer
+                things will start breaking.
+
+                I'm sure the logic could be simplified a bit but it seems to be working pretty well
+                so maybe it's not worth messing with it.
+            */
+
+            // limit max font size by pretending that slices are at most that big
+            const maxSliceAngle = Math.PI / 4
+            const angleStepForFont = Math.min(angleStep, maxSliceAngle);
+
+            // Arc chord length forula: 2 * radius * sin(theta / 2)
+            // Here we pick a font size which height fits perfectly at radius/2 distance from center.
+            const optimisticFontSize = radius * Math.sin(angleStepForFont/2);
+
+            const nameLen = names[i].trim().length;
+
+            // As the text gets longer we want to make it smaller. It will get squished horizontally
+            // but it is not enough when the text gets long enough.
+            const longNameMultiplier = clamp(1 - ((nameLen - 10) / 50), 0.5, 1);
+
+            const magicMultiplier = 0.3
+            const fontSize = longNameMultiplier * optimisticFontSize * ratio * magicMultiplier;
+
+            ctx.font = fontSize + "px arial";
+            ctx.textAlign = "end"
+            ctx.textBaseline = "middle"
+
+            // Add padding on both sides using whitespace
+            const displayName = "       " + names[i].trim() + " ";
+            ctx.fillText(displayName, 0, 0, radius);
+        }
+
         ctx.fill();
     }
-
-    ctx.resetTransform()
-    ctx.beginPath()
-    ctx.strokeStyle = "red";
-    ctx.moveTo(canvas.width/2 + radius * 0.95, canvas.height/2);
-    ctx.lineTo(canvas.width/2 + (radius * 1.05), canvas.height/2 + radius*0.06);
-    ctx.lineTo(canvas.width/2 + (radius * 1.05), canvas.height/2 - radius*0.06);
-    ctx.fill()
 
     window.requestAnimationFrame(draw);
 }
