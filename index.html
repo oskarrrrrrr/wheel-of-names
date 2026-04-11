@@ -282,6 +282,15 @@ function draw() {
         ctx.fill();
     }
 
+    // result indicator triangle
+    ctx.resetTransform()
+    ctx.beginPath()
+    ctx.strokeStyle = "red";
+    ctx.moveTo(canvas.width/2 + radius * 0.95, canvas.height/2);
+    ctx.lineTo(canvas.width/2 + (radius * 1.05), canvas.height/2 + radius*0.06);
+    ctx.lineTo(canvas.width/2 + (radius * 1.05), canvas.height/2 - radius*0.06);
+    ctx.fill()
+
     window.requestAnimationFrame(draw);
 }
 
