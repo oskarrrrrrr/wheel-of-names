@@ -12,7 +12,7 @@
             padding: 0 !important;
             height: 100%;
             overscroll-behavior-y: none;
-            font-family: Arial
+            font-family: Arial;
         }
 
         h1, h2 {
@@ -31,6 +31,10 @@
             justify-content: center;
             align-items: center;
             z-index: 0;
+        }
+
+        #names-textarea {
+            color: white;
         }
 
         #names-list {
@@ -73,6 +77,10 @@
             background-color: #8d909a;
             border: 2px solid #676a79;
             border-radius: 7px;
+        }
+
+        button:disabled {
+            cursor: default;
         }
 
         textarea {
@@ -134,6 +142,8 @@ const resultDialogName = document.getElementById("result-dialog-name")
 
 const colors = ["#D9A69F", "#6C739C", "#D8C4BF", "#BABBB1", "#C56B62", "#424658", "#DEA785"]
 shuffleArray(colors)
+
+namesTextArea.style.backgroundColor = "#424658";
 
 let names = ["Brooklyn", "Manhattan", "Bronx", "Queens", "Staten Island"]
 namesTextArea.value = names.join("\n")
