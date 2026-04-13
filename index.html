@@ -73,14 +73,6 @@
             border: 2px solid #676a79;
             border-radius: 7px;
             box-shadow: #424658 0px 7px;
-
-            position: relative;
-            top: 0;
-            transition: top ease 0.3s;
-
-            &:not(.disable):hover {
-                top: -4px;
-            }
         }
 
         textarea {
@@ -98,7 +90,7 @@
             <h2>Names</h2>
         </div>
         <textarea id="names-textarea" rows="10"></textarea>
-        <button onclick="spin()">spin</button>
+        <button id="spin-button" onclick="spin()">spin</button>
     </div>
 
     <dialog id="result-dialog">
@@ -114,6 +106,8 @@
 
 <script>
 
+/* Utilities */
+
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -121,17 +115,41 @@ function shuffleArray(array) {
     }
 }
 
-function clamp(num, min, max) {
-    return Math.max(Math.min(num, max), min)
-}
+function clamp(num, min, max) { return Math.max(Math.min(num, max), min); }
+function pow2(x) { return x * x; }
+function distanceSquared(p1, p2) { return pow2(p1[0]-p2[0]) + pow2(p1[1]-p2[1]); }
+function distance(p1, p2) { return Math.sqrt(distanceSquared(p1, p2)); }
+
+/***/
+
+/* Static HTML Elements */
+
+const canvas = document.getElementById("canvas-wheel")
+const namesTextArea = document.getElementById("names-textarea")
+const spinButton = document.getElementById("spin-button")
+const resultDialog = document.getElementById("result-dialog")
+const resultDialogName = document.getElementById("result-dialog-name")
+
+/***/
 
 const colors = ["#D9A69F", "#6C739C", "#D8C4BF", "#BABBB1", "#C56B62", "#424658", "#DEA785"]
-
 shuffleArray(colors)
 
-let names = ["Po", "Shifu", "Oogway", "Tai Lung", "Shen"]
-const namesTextArea = document.getElementById("names-textarea")
+let names = ["Brooklyn", "Manhattan", "Bronx", "Queens", "Staten Island"]
 namesTextArea.value = names.join("\n")
+
+// The number of physical pixels used to display a single CSS pixel.
+let displayRatio;
+
+function refreshDisplay() {
+    displayRatio = window.devicePixelRatio || 1;
+
+    canvas.width = document.body.clientWidth * displayRatio
+    canvas.height = document.body.clientHeight * displayRatio
+    canvas.style.width = document.body.clientWidth + "px"
+    canvas.style.height = document.body.clientHeight + "px"
+}
+refreshDisplay();
 
 let startAngle = 0;
 let angleLeft = 0;
@@ -140,18 +158,120 @@ let indexToRemove = -1
 
 let lastTime = performance.now()
 
+let lastMousePositionTime = performance.now();
+let lastMousePosition = [0, 0];
+
+// Track mouse angular velocity when grabbed to automatically spin the wheel when the mouse is released and appropriate velocity was reached.
+let RECENT_MOUSE_ANGULAR_VELOCITIES_COUNT = 5;
+let recentMouseAngularVelocities = new Array(RECENT_MOUSE_ANGULAR_VELOCITIES_COUNT).fill(0);
+let recentMouseAngularVelocitiesIndex = 0;
+function recordMouseAngularVelocity(v) {
+    recentMouseAngularVelocities[recentMouseAngularVelocitiesIndex] = v;
+    recentMouseAngularVelocitiesIndex = (recentMouseAngularVelocitiesIndex + 1) % RECENT_MOUSE_ANGULAR_VELOCITIES_COUNT;
+}
+function shouldStartSpinning() {
+    const reachedVelocity = recentMouseAngularVelocities.some((v) => v > 0.02);
+    const goodDirection = recentMouseAngularVelocities.filter((v) => v > 0).length >= 0.8 * RECENT_MOUSE_ANGULAR_VELOCITIES_COUNT;
+    return reachedVelocity && goodDirection;
+}
+
+// Wheel grabbed using mouse.
+let grabbed = false;
+let grabPrevPos = [0, 0];
+
+// Wheel is spinning, i.e. we triggered a random pick.
+let spinning = false;
+
+canvas.addEventListener("mousedown", (e) => {
+    if (spinning) return;
+
+    const mousePosition = [e.clientX, e.clientY];
+    const center = [canvas.width / displayRatio / 2, canvas.height / displayRatio / 2];
+    const radius = (Math.min(canvas.width, canvas.height) * 0.8 / 2) / displayRatio;
+    if (distanceSquared(center, mousePosition) < pow2(radius)) {
+        grabbed = true;
+        grabPrevPos = [e.clientX, e.clientY];
+    }
+});
+
+canvas.addEventListener("mouseup", (e) => {
+    if (spinning) return;
+    if (grabbed) {
+        grabbed = false;
+        if (shouldStartSpinning()) {
+            spin();
+        }
+        return;
+    }
+});
+
+document.documentElement.addEventListener('mouseleave', () => {
+    grabbed = false;
+    if (!spinning && shouldStartSpinning()) {
+        spin();
+    }
+});
+
+function getAngleDifference(e) {
+    let prevAngle = Math.atan2(grabPrevPos[1] - canvas.height/displayRatio/2, grabPrevPos[0] - canvas.width/displayRatio/2);
+    if (prevAngle < 0) prevAngle = 2*Math.PI + prevAngle;
+
+    let currAngle = Math.atan2(e.clientY - canvas.height/displayRatio/2, e.clientX - canvas.width/displayRatio/2);
+    if (currAngle < 0) currAngle = 2*Math.PI + currAngle;
+
+    angleDiff = currAngle - prevAngle;
+    return angleDiff;
+}
+
+canvas.addEventListener("mousemove", (e) => {
+    const mousePosition = [e.clientX, e.clientY];
+
+    const now = performance.now()
+
+    const angleDifference = getAngleDifference(e);
+    const angularVelocity = angleDifference / (now - lastMousePositionTime);
+    recordMouseAngularVelocity(angularVelocity);
+
+    lastMousePositionTime = now;
+    lastMousePosition = mousePosition;
+
+    const center = [canvas.width / displayRatio / 2, canvas.height / displayRatio / 2];
+    const radius = (Math.min(canvas.width, canvas.height) * 0.8 / 2) / displayRatio;
+
+    const mouseInWheel = distanceSquared(center, mousePosition) < pow2(radius);
+    if ((mouseInWheel || grabbed) && !spinning) {
+        document.body.style.cursor = 'pointer';
+    } else {
+        document.body.style.cursor = 'default';
+    }
+
+    if (grabbed) {
+        startAngle += getAngleDifference(e);
+        grabPrevPos = [e.clientX, e.clientY];
+    }
+});
+
 function spin() {
+    if (spinning) {
+        console.warn('Attempted to spin while already spinning');
+        return;
+    }
     if (names.length === 1 && names[0] === '') return
 
-    namesTextArea.disabled = true
-    angleLeft = 2*Math.PI * 3 + Math.random() * 2*Math.PI*5
-    const nameIndex = names.length - 1 - Math.floor(((startAngle + angleLeft) % (2*Math.PI)) / (2*Math.PI/names.length))
-    indexToRemove = nameIndex
-    lastWinner = names[nameIndex]
+    spinning = true;
+
+    namesTextArea.disabled = true;
+    spinButton.disabled = true;
+
+    angleLeft = 2*Math.PI * 3 + Math.random() * 2*Math.PI*5;
+    const nameIndex = names.length - 1 - Math.floor(((startAngle + angleLeft) % (2*Math.PI)) / (2*Math.PI/names.length));
+    indexToRemove = nameIndex;
+    lastWinner = names[nameIndex];
 }
 
 function endSpin(remove) {
-    namesTextArea.disabled = false
+    namesTextArea.disabled = false;
+    spinButton.disabled = false;
 
     if (remove) {
         names.splice(indexToRemove, 1) 
@@ -159,17 +279,17 @@ function endSpin(remove) {
     }
 
     indexToRemove = -1
-
-    const resultDialog = document.getElementById("result-dialog")
     resultDialog.close()
+    spinning = false;
 }
 
 function draw() {
+    refreshDisplay();
+
     const now = performance.now()
     const timeDiff = now - lastTime;
     lastTime = now;
 
-    const namesTextArea = document.getElementById("names-textarea")
     names = namesTextArea.value.split("\n").filter((s) => s !== '')
     if (names.length === 0) names = ['']
 
@@ -178,24 +298,13 @@ function draw() {
     angleLeft -= angleDiff
 
     if (angleLeft === 0) {
-        const resultDialogName = document.getElementById("result-dialog-name")
         resultDialogName.innerText = lastWinner
 
-        const resultDialog = document.getElementById("result-dialog")
         if (!resultDialog.open && indexToRemove >= 0) resultDialog.showModal()
     }
 
-    const canvas = document.getElementById("canvas-wheel")
-
-    const ratio = window.devicePixelRatio || 1
-    canvas.width = document.body.clientWidth * ratio
-    canvas.height = document.body.clientHeight * ratio
-
-    canvas.style.width = document.body.clientWidth + "px"
-    canvas.style.height = document.body.clientHeight + "px"
-
     const ctx = canvas.getContext("2d")
-    ctx.scale(ratio, ratio)
+    ctx.scale(displayRatio, displayRatio)
 
     ctx.fillStyle = "grey";
     ctx.fillRect(0, 0, canvas.width, canvas.height)
@@ -268,7 +377,7 @@ function draw() {
             const longNameMultiplier = clamp(1 - ((nameLen - 10) / 50), 0.5, 1);
 
             const magicMultiplier = 0.3
-            const fontSize = longNameMultiplier * optimisticFontSize * ratio * magicMultiplier;
+            const fontSize = longNameMultiplier * optimisticFontSize * displayRatio * magicMultiplier;
 
             ctx.font = fontSize + "px arial";
             ctx.textAlign = "end"
