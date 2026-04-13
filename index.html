@@ -15,7 +15,7 @@
             font-family: Arial
         }
 
-        h2 {
+        h1, h2 {
             color: white;
         }
 
@@ -45,6 +45,7 @@
 
         #result-dialog {
             width: 400px;
+            border: 3px solid white;
         }
 
         #result-dialog-div {
@@ -72,7 +73,6 @@
             background-color: #8d909a;
             border: 2px solid #676a79;
             border-radius: 7px;
-            box-shadow: #424658 0px 7px;
         }
 
         textarea {
@@ -289,6 +289,10 @@ function endSpin(remove) {
 function draw() {
     refreshDisplay();
 
+    function getColor(i) {
+        return colors[(i%colors.length + Math.trunc(i/colors.length)) % colors.length];
+    }
+
     const now = performance.now()
     const timeDiff = now - lastTime;
     lastTime = now;
@@ -303,7 +307,11 @@ function draw() {
     if (angleLeft === 0) {
         resultDialogName.innerText = lastWinner
 
-        if (!resultDialog.open && indexToRemove >= 0) resultDialog.showModal()
+        if (!resultDialog.open && indexToRemove >= 0) {
+            const color = getColor(indexToRemove);
+            resultDialog.style.backgroundColor = color;
+            resultDialog.showModal();
+        }
     }
 
     const ctx = canvas.getContext("2d")
@@ -320,7 +328,7 @@ function draw() {
     	
         // colorful pizza slices
         ctx.beginPath();
-        ctx.fillStyle = colors[(i%colors.length + Math.trunc(i/colors.length)) % colors.length]
+        ctx.fillStyle = getColor(i);
         ctx.moveTo(canvas.width/2, canvas.height/2)
         ctx.arc(canvas.width/2, canvas.height/2, radius, startAngle + angleStep * i, startAngle + angleStep * (i+1), false);
         ctx.closePath()
