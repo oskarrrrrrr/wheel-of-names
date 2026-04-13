@@ -183,6 +183,7 @@ let grabPrevPos = [0, 0];
 let spinning = false;
 
 canvas.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
     if (spinning) return;
 
     const mousePosition = [e.clientX, e.clientY];
@@ -195,6 +196,7 @@ canvas.addEventListener("mousedown", (e) => {
 });
 
 canvas.addEventListener("mouseup", (e) => {
+    if (e.button !== 0) return;
     if (spinning) return;
     if (grabbed) {
         grabbed = false;
@@ -206,10 +208,11 @@ canvas.addEventListener("mouseup", (e) => {
 });
 
 document.documentElement.addEventListener('mouseleave', () => {
-    grabbed = false;
-    if (!spinning && shouldStartSpinning()) {
+    if (grabbed && shouldStartSpinning()) {
+        grabbed = false;
         spin();
     }
+    grabbed = false;
 });
 
 function getAngleDifference(e) {
