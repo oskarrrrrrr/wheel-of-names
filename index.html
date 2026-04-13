@@ -68,6 +68,10 @@
             justify-content: flex-end;
         }
 
+        #spin-button {
+            display: none;
+        }
+
         button {
             cursor: pointer;
 
@@ -94,9 +98,6 @@
         <canvas id="canvas-wheel"></canvas>
     </div>
     <div id="names-list">
-        <div class="center">
-            <h2>Names</h2>
-        </div>
         <textarea id="names-textarea" rows="10"></textarea>
         <button id="spin-button" onclick="spin()">spin</button>
     </div>
@@ -321,6 +322,8 @@ function draw() {
             const color = getColor(indexToRemove);
             resultDialog.style.backgroundColor = color;
             resultDialog.showModal();
+            // first button gets highlighted automatically
+            document.activeElement.blur()
         }
     }
 
