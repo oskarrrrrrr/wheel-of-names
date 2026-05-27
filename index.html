@@ -47,6 +47,25 @@
             gap: .5em;
         }
 
+        .debug-console-div {
+            position: absolute;
+            z-index: 100;
+            top: 1%;
+            left: 1%;
+            display: flex;
+            flex-direction: column;
+            gap: .5em;
+            width: 500px;
+            height: 200px;
+            padding: 1em;
+            background-color: rgba(0, 0, 0, .4);
+            color: #00FF41;
+            overflow-y: auto;
+            resize:both;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
         #result-dialog {
             width: 400px;
             border: 3px solid white;
@@ -90,6 +109,10 @@
         textarea {
           resize: none;
         }
+
+        .hide {
+            display: none;
+        }
     </style>
 </head>
 
@@ -101,6 +124,8 @@
         <textarea id="names-textarea" rows="10"></textarea>
         <button id="spin-button" onclick="spin()">spin</button>
     </div>
+
+    <div id="debug-console-div" class="debug-console-div hide"></div>
 
     <dialog id="result-dialog">
         <div id="result-dialog-div">
@@ -138,11 +163,35 @@ const namesTextArea = document.getElementById("names-textarea")
 const spinButton = document.getElementById("spin-button")
 const resultDialog = document.getElementById("result-dialog")
 const resultDialogName = document.getElementById("result-dialog-name")
+const debugConsoleDiv = document.getElementById("debug-console-div")
 
 /***/
 
-const colors = ["#D9A69F", "#6C739C", "#D8C4BF", "#BABBB1", "#C56B62", "#424658", "#DEA785"]
-shuffleArray(colors)
+function dbg(msg) {
+    const logLine = document.createElement("div");
+    logLine.classList.add("debug-console-line-div");
+
+    const now = new Date();
+    const parts = [now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds()];
+    const lengths = [2, 2, 2, 3];
+    const joinChar = [":", ":", ".", ""];
+    let dateStr = "";
+    for (let i = 0; i < parts.length; i += 1) {
+        dateStr += String(parts[i]).padStart(lengths[i], "0") + joinChar[i];
+    }
+
+    logLine.innerText = `[${dateStr}] ${msg}`;
+    debugConsoleDiv.prepend(logLine);
+}
+
+document.addEventListener("keydown", function (e) {
+    if (e.key == '`' && e.ctrlKey) {
+        debugConsoleDiv.classList.toggle('hide');
+    }
+})
+
+const colors = ["#D9A69F", "#6C739C", "#D8C4BF", "#BABBB1", "#C56B62", "#424658", "#DEA785"];
+shuffleArray(colors);
 
 namesTextArea.style.backgroundColor = "#424658";
 
@@ -200,7 +249,8 @@ canvas.addEventListener("mousedown", (e) => {
     const mousePosition = [e.clientX, e.clientY];
     const center = [canvas.width / displayRatio / 2, canvas.height / displayRatio / 2];
     const radius = (Math.min(canvas.width, canvas.height) * 0.8 / 2) / displayRatio;
-    if (distanceSquared(center, mousePosition) < pow2(radius)) {
+    const distanceSquaredValue = distanceSquared(center, mousePosition);
+    if (pow2(radius/10) < distanceSquaredValue && distanceSquaredValue < pow2(radius)) {
         grabbed = true;
         grabPrevPos = [e.clientX, e.clientY];
     }
@@ -252,7 +302,8 @@ canvas.addEventListener("mousemove", (e) => {
     const center = [canvas.width / displayRatio / 2, canvas.height / displayRatio / 2];
     const radius = (Math.min(canvas.width, canvas.height) * 0.8 / 2) / displayRatio;
 
-    const mouseInWheel = distanceSquared(center, mousePosition) < pow2(radius);
+    const distanceSquaredValue = distanceSquared(center, mousePosition);
+    const mouseInWheel = pow2(radius/10) < distanceSquaredValue && distanceSquaredValue < pow2(radius);
     if ((mouseInWheel || grabbed) && !spinning) {
         document.body.style.cursor = 'pointer';
     } else {
@@ -281,6 +332,8 @@ function spin() {
     const nameIndex = names.length - 1 - Math.floor(((startAngle + angleLeft) % (2*Math.PI)) / (2*Math.PI/names.length));
     indexToRemove = nameIndex;
     lastWinner = names[nameIndex];
+
+    dbg(`spinning; winner: ${lastWinner}, angle (radians) ${angleLeft.toFixed(2)}`);
 }
 
 function endSpin(remove) {
