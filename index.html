@@ -26,11 +26,14 @@
             width: 100%;
         }
 
-        #canvas-div {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 0;
+        #canvas-confetti {
+            position: absolute;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+            z-index: 10;
+
+            pointer-events:none;
         }
 
         #names-textarea {
@@ -120,6 +123,9 @@
     <div id="canvas-div">
         <canvas id="canvas-wheel"></canvas>
     </div>
+
+    <canvas id="canvas-confetti"></canvas>
+
     <div id="names-list">
         <textarea id="names-textarea" rows="10"></textarea>
         <button id="spin-button" onclick="spin()">spin</button>
@@ -154,19 +160,6 @@ function pow2(x) { return x * x; }
 function distanceSquared(p1, p2) { return pow2(p1[0]-p2[0]) + pow2(p1[1]-p2[1]); }
 function distance(p1, p2) { return Math.sqrt(distanceSquared(p1, p2)); }
 
-/***/
-
-/* Static HTML Elements */
-
-const canvas = document.getElementById("canvas-wheel")
-const namesTextArea = document.getElementById("names-textarea")
-const spinButton = document.getElementById("spin-button")
-const resultDialog = document.getElementById("result-dialog")
-const resultDialogName = document.getElementById("result-dialog-name")
-const debugConsoleDiv = document.getElementById("debug-console-div")
-
-/***/
-
 function dbg(msg) {
     const logLine = document.createElement("div");
     logLine.classList.add("debug-console-line-div");
@@ -190,6 +183,22 @@ document.addEventListener("keydown", function (e) {
     }
 })
 
+/***/
+
+/* Static HTML Elements */
+
+const canvas = document.getElementById("canvas-wheel")
+const canvasConfetti = document.getElementById("canvas-confetti")
+const namesTextArea = document.getElementById("names-textarea")
+const spinButton = document.getElementById("spin-button")
+const resultDialog = document.getElementById("result-dialog")
+const resultDialogName = document.getElementById("result-dialog-name")
+const debugConsoleDiv = document.getElementById("debug-console-div")
+
+/***/
+
+/* State/Setup */
+
 const colors = ["#D9A69F", "#6C739C", "#D8C4BF", "#BABBB1", "#C56B62", "#424658", "#DEA785"];
 shuffleArray(colors);
 
@@ -197,6 +206,71 @@ namesTextArea.style.backgroundColor = "#424658";
 
 let names = ["Brooklyn", "Manhattan", "Bronx", "Queens", "Staten Island"]
 namesTextArea.value = names.join("\n")
+
+/***/
+
+/* Confetti */
+
+function newConfetto() {
+    const sizeFactor = 0.6 + (0.8 * Math.random());
+
+    return {
+        speed: sizeFactor * 0.7,
+
+        x: Math.random() * canvasConfetti.width,
+        y: -10,
+        h: sizeFactor * 20,
+        w: sizeFactor * 10,
+
+        rotation: 0,
+        rotationSpeed: (2 * (-0.5 + Math.random())) / 100,
+
+        color: colors[Math.trunc(Math.random() * colors.length)],
+    }
+}
+
+const MAX_CONFETTI = 5_000;
+let confetti = [];
+let confettiIndex = 0;
+
+function addConfetto(confetto) {
+    if (confetti.length < MAX_CONFETTI) {
+        confetti.push(confetto);
+    } else {
+        confetti[confettiIndex] = confetto;
+    }
+    confettiIndex = (confettiIndex + 1) % MAX_CONFETTI;
+}
+
+function updateConfetti(dt) {
+    for (const confetto of confetti) {
+        confetto.y += confetto.speed * dt;
+        confetto.rotation += confetto.rotationSpeed * dt;
+    }
+}
+
+function drawConfetti(ctx) {
+    for (const confetto of confetti) {
+        const confettoInView = (confetto.y - confetto.h) < canvasConfetti.height;
+        if (!confettoInView) continue;
+
+        const offsetX = confetto.x + confetto.w / 2;
+        const offsetY = confetto.y + confetto.h / 2;
+        ctx.translate(offsetX, offsetY);
+        ctx.rotate(confetto.rotation);
+
+        ctx.fillStyle = confetto.color;
+        ctx.fillRect(0, 0, confetto.w, confetto.h)
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+}
+
+function clearConfetti(ctx) {
+    confetti = [];
+}
+
+/***/
 
 // The number of physical pixels used to display a single CSS pixel.
 let displayRatio;
@@ -208,6 +282,11 @@ function refreshDisplay() {
     canvas.height = document.body.clientHeight * displayRatio
     canvas.style.width = document.body.clientWidth + "px"
     canvas.style.height = document.body.clientHeight + "px"
+
+    canvasConfetti.width = document.body.clientWidth * displayRatio
+    canvasConfetti.height = document.body.clientHeight * displayRatio
+    canvasConfetti.style.width = document.body.clientWidth + "px"
+    canvasConfetti.style.height = document.body.clientHeight + "px"
 }
 refreshDisplay();
 
@@ -241,6 +320,7 @@ let grabPrevPos = [0, 0];
 
 // Wheel is spinning, i.e. we triggered a random pick.
 let spinning = false;
+let spawnConfettiTimeLeftMs = 0;
 
 canvas.addEventListener("mousedown", (e) => {
     if (e.button !== 0) return;
@@ -274,6 +354,10 @@ document.documentElement.addEventListener('mouseleave', () => {
         spin();
     }
     grabbed = false;
+});
+
+window.addEventListener("resize", (event) => {
+    refreshDisplay();
 });
 
 function getAngleDifference(e) {
@@ -322,6 +406,8 @@ function spin() {
         return;
     }
     if (names.length === 1 && names[0] === '') return
+        
+    clearConfetti();
 
     spinning = true;
 
@@ -350,9 +436,8 @@ function endSpin(remove) {
     spinning = false;
 }
 
+// draw and update
 function draw() {
-    refreshDisplay();
-
     function getColor(i) {
         return colors[(i%colors.length + Math.trunc(i/colors.length)) % colors.length];
     }
@@ -360,6 +445,16 @@ function draw() {
     const now = performance.now()
     const timeDiff = now - lastTime;
     lastTime = now;
+
+    updateConfetti(timeDiff);
+    if (spawnConfettiTimeLeftMs > 0) {
+        // This is frame rate dependent. That's ok, we can show a few more confetti on a fast machine
+        // and fewer on a slower one.
+        for (let i = 0; i < 10; i += 1) {
+            addConfetto(newConfetto());
+        }
+        spawnConfettiTimeLeftMs -= timeDiff;
+    }
 
     names = namesTextArea.value.split("\n").filter((s) => s !== '')
     if (names.length === 0) names = ['']
@@ -377,7 +472,16 @@ function draw() {
             resultDialog.showModal();
             // first button gets highlighted automatically
             document.activeElement.blur()
+
+            spawnConfettiTimeLeftMs = 3000;
         }
+    }
+
+    // we can draw this before the wheel and everything else because it's on another canvas so there won't be z-index issues
+    {
+        const ctx = canvasConfetti.getContext("2d");
+        ctx.clearRect(0, 0, canvasConfetti.width, canvasConfetti.height)
+        drawConfetti(ctx);
     }
 
     const ctx = canvas.getContext("2d")
