@@ -207,6 +207,8 @@ namesTextArea.style.backgroundColor = "#424658";
 let names = ["Brooklyn", "Manhattan", "Bronx", "Queens", "Staten Island"]
 namesTextArea.value = names.join("\n")
 
+const audioCheer = new Audio("driken5482-applause-cheer-236786.mp3");
+
 /***/
 
 /* Confetti */
@@ -474,6 +476,7 @@ function draw() {
             document.activeElement.blur()
 
             spawnConfettiTimeLeftMs = 3000;
+            audioCheer.play()
         }
     }
 
